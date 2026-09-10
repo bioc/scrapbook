@@ -296,9 +296,10 @@ It is possible to obtain MNN-corrected gene expression values but these are much
 The correction is not obliged to preserve relative differences in per-gene expression when aligning multiple batches.
 In fact, the opposite is true - the correction must distort the expression profiles to merge batches together,
 as any differences in expression between batches for the same subpopulation would be a batch effect.
-Let's demonstrate using two pancreas datasets [@grun2016denovo;@muraro2016singlecell] that we'll treat as separate batches.
+Let's demonstrate on two pancreas datasets [@grun2016denovo;@muraro2016singlecell] that we'll treat as separate batches.
+Without any batch correction, we observe strong separation between these two datasets in Figure \@ref(batch-pancreas-uncorrected).
 
-```{r}
+```{r batch-pancreas-uncorrected, fig.cap="$t$-SNE plot of the Grun and Muraro pancreas datasets without batch correction. Each point is a cell, colored according to its assigned batch."}
 library(scRNAseq)
 sce.grun <- GrunPancreasData()
 sce.muraro <- MuraroPancreasData()
@@ -344,6 +345,22 @@ sce.pca.pancreas <- runPca.se(
     features=rowData(sce.var.pancreas)$hvg,
     block=sce.var.pancreas$batch
 )
+
+# Visualizing the data prior to MNN correction.
+sce.unc.pancreas <- runAllNeighborSteps.se(sce.pca.pancreas, reddim.type="PCA")
+library(scater)
+plotReducedDim(sce.unc.pancreas, "TSNE", colour_by="batch")
+```
+
+```{r, echo=FALSE}
+cluster.unc.pancreas <- countGroupsByBlock(
+    sce.unc.pancreas$clusters,
+    sce.unc.pancreas$batch,
+    normalize.groups=TRUE,
+    normalize.block=TRUE
+)
+# Check that there are indeed batch-specific clusters.
+stopifnot(any(cluster.unc.pancreas == 0))
 ```
 
 We use `correctMnn.se()` to obtain MNN-corrected PCs for clustering and visualization.
@@ -362,13 +379,12 @@ cluster.batch.mnn.pancreas <- countGroupsByBlock(
 )
 print(cluster.batch.mnn.pancreas, digits=2, zero.print=".")
 
-library(scater)
 plotReducedDim(sce.nn.mnn.pancreas, "TSNE", colour_by="batch")
 ```
 
 ```{r, echo=FALSE}
-# Check that there are indeed contirbutions from both batches to each cluster.
-stopifnot(all(cluster.batch.mnn.pancreas / rowSums(cluster.batch.mnn.pancreas) > 0.01))
+# Check that there are indeed contributions from both batches to each cluster.
+stopifnot(all(cluster.batch.mnn.pancreas > 0.01))
 ```
 
 We recover "corrected expression values" for any given gene by multiplying the corrected PCs with the corresponding row of the rotation matrix.
@@ -377,7 +393,7 @@ Of particular interest is the _INS-IGF2_ gene, where MNN correction forces the e
 (As of time of writing, this involved eliminating the variability in _INS-IGF2_ across clusters in the Grun dataset to match the lack of expression in the Muraro dataset,
 though the opposite outcome is equally possible, i.e., introducing non-zero expression in the Muraro dataset to match that of the Grun dataset.)
 From the perspective of the correction algorithm, this effect is intended as these differences between batches are part of the batch effect and must be removed.
-However, if we relied the corrected expression values, we would draw misleading conclusions about the behavior of _INS-IGF2_ across batches.
+However, if we relied on the corrected expression values, we would draw misleading conclusions about the behavior of _INS-IGF2_ across batches.
 For example, if one batch consisted of drug-treated patients and another batch was a control,
 we would not detect any treatment-induced differential expression from the corrected expression values.
 

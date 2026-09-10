@@ -295,11 +295,11 @@ sce.10x <- read10xCounts(fname.10x, col.names=TRUE)
 set.seed(100)
 ed.10x <- emptyDrops(counts(sce.10x))
 sce.10x <- sce.10x[,which(ed.10x$FDR <= 0.001)]
-sce.10x
 
 # Applying our default QC with outlier-based thresholds.
 is.mito.10x <- grepl("^MT-", rowData(sce.10x)$Symbol)
 sce.qc.10x <- quickRnaQc.se(sce.10x, subsets=list(MT=is.mito.10x))
+summary(sce.qc.10x$keep)
 
 # Summing counts for the pools of retained or discarded cells.
 aggregate.10x <- aggregateAcrossCells.se(

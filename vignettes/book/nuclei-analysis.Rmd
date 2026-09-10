@@ -11,7 +11,7 @@ library(BiocStyle)
 knitr::opts_chunk$set(message=FALSE, warning=FALSE, error=FALSE)
 ```
 
-## Introduction
+## Motivation
 
 Single-nuclei RNA-seq (snRNA-seq) is another strategy for performing single-cell transcriptomics where individual nuclei instead of cells are captured and sequenced.
 The major advantage of snRNA-seq over scRNA-seq is that the former does not require the preservation of cellular integrity during sample preparation, especially dissociation.
