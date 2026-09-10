@@ -120,107 +120,111 @@ This allows us explore other perspectives of the data at different trade-offs be
 
 ## Blocking on uninteresting factors {#pca-block}
 
-Larger datasets typically consist of multiple blocks of cells with uninteresting differences between them, e.g.. batch effects, variability between donors.
+Larger datasets typically consist of multiple blocks of cells with uninteresting differences between them, e.g., batch effects, variability between donors.
 We don't want to waste our top PCs on capturing these differences - instead, we want our PCA to focus on the biological structure within each block.
-To demonstrate, let's look at a dataset consisting of two plates of wild-type and oncogene-induced 416B cells [@lun2017assessing].
-Differences in expression due to the plate of origin are obviously technical and should be ignored.
-To make life more exciting, we will also consider the oncogene induction status to be an uninteresting experimental factor^[
-Which is not entirely unreasonable.
-Say that we want to identify matching cell states across the wild-type and induced populations.
-In such cases, we would want to ignore the induction effect so that the matching states will cluster together.] that should not be allowed to dominate the PCA.
+To demonstrate, let's look at two 10X Genomics datasets of human PBMCs [@zheng2017massively]. 
+These datasets are effectively replicates so any differences between them are uninteresting and should be ignored. 
 
 ```{r}
-library(scRNAseq)
-sce.416b <- LunSpikeInData("416b")
+library(TENxPBMCData)
+sce.pbmc3k <- TENxPBMCData('pbmc3k')
+sce.pbmc4k <- TENxPBMCData('pbmc4k')
 
-# Combining the plate of origin and oncogene induction status into a single
-# blocking factor of 'uninteresting' variation.
-plate.416b <- sce.416b$block
-pheno.416b <- ifelse(sce.416b$phenotype == "wild type phenotype", "WT", "induced")
-sce.416b$block <- factor(paste0(pheno.416b, "-", plate.416b))
+# Finding a common set of genes across all datasets to allow us to combine
+# everything into a single object. This is only necessary if the different
+# datasets were processed with different genome annotations.
+inter.pbmc <- intersect(rownames(sce.pbmc3k), rownames(sce.pbmc4k))
+sce.pbmc <- combineCols(sce.pbmc3k[inter.pbmc,], sce.pbmc4k[inter.pbmc,])
+sce.pbmc$block <- rep(c("3k", "4k"), c(ncol(sce.pbmc3k), ncol(sce.pbmc4k)))
 
-# Computing the QC metrics.
+# Loading the counts into memory. for convenience.
+counts(sce.pbmc) <- as(counts(sce.pbmc), "dgCMatrix")
+
+# Quality control, blocking on the dataset of origin for each cell.
+is.mito.pbmc <- grep("MT", rowData(sce.pbmc)$Symbol)
 library(scrapper)
-is.mito.416b <- which(any(seqnames(rowRanges(sce.416b)) == "MT"))
-sce.qc.416b <- quickRnaQc.se(
-    sce.416b,
-    subsets=list(MT=is.mito.416b),
-    altexp.proportions="ERCC",
-    block=sce.416b$block
+sce.qc.pbmc <- quickRnaQc.se(
+    sce.pbmc,
+    subsets=list(MT=is.mito.pbmc),
+    block=sce.pbmc$block
 )
-sce.qc.416b <- sce.qc.416b[,sce.qc.416b$keep]
+sce.qc.pbmc <- sce.pbmc[,sce.qc.pbmc$keep]
 
-# Computing log-normalized expression values.
-sce.norm.416b <- normalizeRnaCounts.se(
-    sce.qc.416b,
-    size.factors=sce.qc.416b$sum,
-    block=sce.qc.416b$block
+# Normalization, blocking on the dataset of origin for each cell.
+sce.norm.pbmc <- normalizeRnaCounts.se(
+    sce.qc.pbmc,
+    size.factors=sce.qc.pbmc$sum,
+    block=sce.qc.pbmc$block
 )
 
-# Choosing the top HVGs after blocking on the uninteresting factors.
-sce.var.416b <- chooseRnaHvgs.se(
-    sce.norm.416b,
-    more.choose.args=list(top=1000), # just picking a cool-looking number of top genes here.
-    block=sce.norm.416b$block
+# We now choose the top HVGs, with blocking.
+sce.var.pbmc <- chooseRnaHvgs.se(
+    sce.norm.pbmc, 
+    block=sce.norm.pbmc$block
 )
 ```
 
 We specify `block=` to instruct `runPca.se()` to focus on the variation within each block.
-Briefly, this involves centering each block at the origin, finding the axes of largest variation among the residuals, 
-and then projecting the expression values for each cell onto these axes to obtain that its PC scores.
-By examining the variance of the residuals, we reduce the contribution of uninteresting differences between blocks;
-conversely, we provide more opportunities for the top PCs to capture biological variation within each block. 
-For example, blocking removes some of the shift between the induced and wild-type subpopulations on the first two PCs (Figure \@ref(fig:pca-416b)).
+Roughly speaking, this is equivalent to computing the gene-gene covariances within each block,
+taking the weighted average across blocks, and using the subsequent covariance matrix to define the axes of variation.
+This reduces the contribution of uninteresting differences between blocks and provides more opportunities for the top PCs to capture biological variation within each block. 
+For example, blocking removes some of the shift between datasets in the first two PCs (Figure \@ref(fig:pca-pbmc)).
 
-```{r pca-416b, fig.width=10, fig.height=5, fig.cap="First two PCs for the 416B dataset, before and after blocking on uninteresting experimental factors. Each point represents a cell, colored by its combination of experimental factors."}
-is.hvg.416b <- rowData(sce.var.416b)$hvg
-sce.pca.416b <- runPca.se(sce.var.416b, features=is.hvg.416b, number=20)
-sce.block.416b <- runPca.se(
-    sce.var.416b,
-    features=is.hvg.416b,
-    number=20,
-    block=sce.var.416b$block
+```{r pca-pbmc, fig.width=10, fig.height=5, fig.cap="First two PCs for the combined PBMC datasets, before and after blocking on the dataset of origin. Each point represents a cell, colored by its dataset."}
+sce.block.pbmc <- runPca.se(
+    sce.var.pbmc,
+    features=rowData(sce.var.pbmc)$hvg,
+    block=sce.var.pbmc$block,
+    number=10
+)
+
+# For comparison, let's look at the unblocked PCA.
+sce.pca.pbmc <- runPca.se(
+    sce.var.pbmc,
+    features=rowData(sce.var.pbmc)$hvg,
+    number=10
 )
 
 library(scater)
 gridExtra::grid.arrange(
-    plotReducedDim(sce.pca.416b, dimred="PCA", colour_by="block") +
+    plotReducedDim(sce.pca.pbmc, dimred="PCA", colour_by="block") +
         ggtitle("Without blocking"),
-    plotReducedDim(sce.block.416b, dimred="PCA", colour_by="block") +
+    plotReducedDim(sce.block.pbmc, dimred="PCA", colour_by="block") +
         ggtitle("Blocked"),
     ncol=2
 )
 ```
 
 It's worth mentioning that blocking in `runPca.se()` is not guaranteed to remove the differences between blocks.
-If we're lucky, blocking alone is sufficient if all of the inter-block differences are orthogonal to the major biological variation,
+If we're lucky, blocking alone is sufficient if all of the inter-block differences are orthogonal to the major biological variation within the blocks,
 such that taking the first few PCs will focus on the latter and remove the former.
 In practice, inter-block differences tend to have some biological component that will be preserved within the first few PCs.
-For example, oncogene induction should have some effect on proliferation decisions in 416B cells,
-so if there is any variation in proliferative pathway activity within each block,
-the differences between blocks would still be captured in the top PCs.
+For example, imagine our two PBMC datasets were derived from different patients who naturally varied in their baseline CD3 expression.
+This variation between patients would probably be captured in the top PCs given that at least one PC would be involved in separating T cells from other types.
 If such differences are uninteresting, their removal requires some additional effort (see Chapter \@ref(batch-correction)) prior to downstream steps like clustering.
-Nonetheless, blocking is still helpful as it eliminates at least some of these differences and preserves more biological signal in the top PCs.
+Nonetheless, blocking is still helpful as it eliminates at least some of these differences and preserves more biological signal in the top PCs^[
+Some folks like to go through their PCs and remove those that are correlated with uninteresting factors like the batch of origin.
+This tends to be a dangerous exercise as you may well be removing relevant biological differences that also happen to be correlated with the batch.
+It would be better to block within the PCA itself to avoid wasting top PCs on batch effects in the first place.].
 
-For completeness' sake: technically speaking, we could attempt to remove the differences between blocks explicitly by setting `center.scores.by.block=TRUE`.
-This will center the PC scores within each block at the origin, and is effectively equivalent to deriving the PC scores from the residuals.
-(Careful readers will note that the default behavior of `block=` is to compute only the axes of variation from the residuals, not the scores themselves.)
-Centering each block removes any systematic difference in location between blocks but is only correct in very limiting circumstances,
+For completeness' sake: we could attempt to remove the differences between blocks explicitly by setting `center.scores.by.block=TRUE`.
+This is equivalent to performing a linear regression on the expression values with respect to the block and deriving the PC scores from the residuals.
+Regressing out the block removes any systematic difference in location between blocks but is only correct in very limiting circumstances,
 e.g., assuming all blocks have the same subpopulation composition and the difference between blocks is consistent for all cell subpopulations.
 Such assumptions may be appropriate in some situations - say, when technical replicates are involved - but are not generally applicable.
-In our 416B example, the two subpopulations are now forced together (Figure \@ref(fig:pca-residuals-416b)) for better or worse.
+Don't be fooled by Figure \@ref(fig:pca-residuals-416b); the PBMC datasets are replicates and most other applications of `center.scores.by.block=TRUE` will not look as good.
 
-```{r pca-residuals-416b, fig.cap="First two PCs for the 416B dataset with blocking, where PC scores are computed from residuals. Each point represents a cell, colored by its combination of experimental factors."}
-sce.resid.416b <- runPca.se(
-    sce.var.416b,
-    features=is.hvg.416b,
-    number=20,
-    block=sce.var.416b$block,
-    more.pca.args=list(center.scores.by.block=TRUE)
+```{r pca-residuals-pbmc, fig.cap="First two PCs for the combined PBMC datasets after blocking on the dataset of origin, where PC scores are computed from residuals. Each point represents a cell, colored by its dataset."}
+sce.resid.pbmc <- runPca.se(
+    sce.var.pbmc,
+    features=rowData(sce.var.pbmc)$hvg,
+    block=sce.var.pbmc$block,
+    more.pca.args=list(center.scores.by.block=TRUE),
+    number=10
 )
 
 library(scater)
-plotReducedDim(sce.resid.416b, dimred="PCA", colour_by="block")
+plotReducedDim(sce.resid.pbmc, dimred="PCA", colour_by="block")
 ```
 
 As with HVGs, we should only use `block=` for experimental factors that are not interesting.
@@ -233,7 +237,7 @@ Check out Chapter \@ref(batch-correction) for a more detailed discussion.
 
 We might as well touch on another common use of PCA, which is visualization of high-dimensional data.
 This is used in a variety of fields and applications including bulk RNA-seq, but is not as effective for scRNA-seq data. 
-If we're lucky, our population structure is simple enough that the first two PCs capture most of the relevant biology (Figures \@ref(fig:pca-416b) and \@ref(fig:pca-residuals-416b)).
+If we're lucky, our population structure is simple enough that the first two PCs capture most of the relevant biology. 
 However, in most cases, relevant biological heterogeneity is spread throughout 10-50 PCs that are much harder to visualize.
 For example, examination of the top 4 PCs is still insufficient to resolve all subpopulations identified by @zeisel2015brain (Figure \@ref(fig:zeisel-pca-multi)).
 
