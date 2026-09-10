@@ -351,12 +351,12 @@ sce.pca.tropho <- runPca.se(sce.var.tropho, features=rowData(sce.var.tropho)$hvg
 sce.nn.tropho <- runAllNeighborSteps.se(sce.pca.tropho)
 ```
 
-We set `block=` to instruct `scoreMarkers.se()` to perform the pairwise comparisons separately in each block, i.e., plate.
-Specifically, for a comparison between two clusters, we compute one effect size per plate where we only use cells in that plate.
+To find cluster-specific markers, we set `block=` to instruct `scoreMarkers.se()` to perform the pairwise comparisons separately in each block, i.e., plate.
+Specifically, for a comparison between two clusters, we compute one effect size per plate based only on the cells in that plate.
 By performing comparisons within each plate, we cancel out any differences between plates so that they do not interfere with our effect sizes.
-The per-plate effect sizes are then averaged across plates to obtain a single value per comparison,
-using a weighted mean that accounts for the number of cells involved in the comparison in each plate.
-A similar average across plates is computed for the mean log-expression and proportion of detected cells. 
+The per-plate effect sizes are then averaged across plates, using a weighted mean that accounts for the number of cells involved in the comparison in each plate.
+This yields a single average effect size per comparison, which we combine across comparisons into a variety of summary statistics for marker ranking. 
+The mean log-expression and proportion of detected cells are similarly averaged across plates. 
 
 ```{r}
 markers.tropho <- scoreMarkers.se(sce.nn.tropho, sce.nn.tropho$clusters, block=sce.nn.tropho$block)
@@ -380,7 +380,7 @@ plotExpression(
     facet_grid(~block)
 ```
 
-If we really want to enforce consistent DE across blocks, we can ask `scoreMarkers.se()` to instead compute a quantile instead of a weighted mean.
+If we really want to enforce consistent DE across blocks, we can ask `scoreMarkers.se()` to compute a quantile instead of a weighted mean when averaging across blocks.
 For example, rankings derived from the minimum effect size across blocks will focus on genes that exhibit large changes in the same direction within each block.
 
 ```{r}
