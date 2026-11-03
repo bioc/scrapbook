@@ -101,7 +101,7 @@ gridExtra::grid.arrange(
         geom_hline(yintercept=qc.thresh.adt.pbmc$detected, linetype="dashed", color="red") +
         ggtitle("Detected features"),
     plotColData(sce.qc.adt.pbmc, y="subset.sum.IgG") + 
-        geom_hline(yintercept=qc.thresh.adt.pbmc$subset.sum["IgG"], linetype="dashed", color="red") +
+        geom_hline(yintercept=qc.thresh.adt.pbmc$subset.sum$IgG, linetype="dashed", color="red") +
         scale_y_log10() +
         ggtitle("IgG sum"),
     ncol=2
@@ -109,8 +109,8 @@ gridExtra::grid.arrange(
 ```
 
 We then apply these thresholds to our metrics to identify high-quality cells.
-If we wanted to use custom thresholds, we could modify our thresholds in the same manner as described in Section \@ref(qc-fixed).
-Similarly, if our dataset contained multiple experimental batches, we could use the same blocking approach as described in Section \@ref(qc-block).
+If we wanted to use custom thresholds, we could set `thresholds=` in the same manner as described in Section \@ref(qc-fixed).
+Similarly, if our dataset contained multiple experimental batches, we could sset `block=` as described in Section \@ref(qc-block).
 
 ```{r}
 summary(sce.qc.adt.pbmc$keep)

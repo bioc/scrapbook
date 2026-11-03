@@ -155,15 +155,19 @@ or have mitochondrial proportions above 10%.
 We can supply these numbers directly to `quickRnaQc.se()` to force the function to use our thresholds:
 
 ```{r}
+# Any of these thresholds can be omitted, in which case
+# they will be computed via the MAD-based threshold.
+fixed.thresholds <- list(
+    sum = 1e5,
+    detected = 5e3,
+    subsets = list(MT = 0.1, ERCC = 0.1)
+)
+
 sce.fixed.416b <- quickRnaQc.se(
     sce.416b,
-    subsets=list(MT=is.mito.416b),
-    altexp.proportions="ERCC", 
-    thresholds=list(
-        sum = 1e5,
-        detected = 5e3,
-        subsets = c(MT = 0.1, ERCC = 0.1)
-    )
+    subsets = list(MT = is.mito.416b),
+    altexp.proportions = "ERCC", 
+    thresholds = fixed.thresholds
 )
 
 summary(sce.fixed.416b$keep)
@@ -175,6 +179,8 @@ Differences in mitochondrial activity or total RNA content require constant adju
 Even with the same protocol and system, the appropriate threshold can vary between runs due to fluctuations in cDNA capture efficiency and sequencing depth per cell.
 
 ## Creating diagnostic plots {#qc-plots}
+
+### Examining QC metric distributions
 
 It's prudent to inspect the distributions of QC metrics (Figure \@ref(fig:qc-dist-416b)) to identify possible problems.
 In the most ideal case, we would see normal distributions that would justify the 3 MAD threshold used in outlier detection.
@@ -193,10 +199,10 @@ gridExtra::grid.arrange(
         scale_y_log10() +
         ggtitle("Detected features"),
     plotColData(sce.qc.416b, y="subset.proportion.MT", colour_by="keep") + 
-        geom_hline(yintercept=qc.thresh.416b$subset.proportion["MT"], linetype="dashed", color="red") +
+        geom_hline(yintercept=qc.thresh.416b$subset.proportion$MT, linetype="dashed", color="red") +
         ggtitle("Mito prop"),
     plotColData(sce.qc.416b, y="subset.proportion.ERCC", colour_by="keep") + 
-        geom_hline(yintercept=qc.thresh.416b$subset.proportion["ERCC"], linetype="dashed", color="red") +
+        geom_hline(yintercept=qc.thresh.416b$subset.proportion$ERCC, linetype="dashed", color="red") +
         ggtitle("ERCC prop"),
     ncol=2
 )
@@ -230,7 +236,7 @@ gridExtra::grid.arrange(
         scale_y_log10() +
         ggtitle("Detected features"),
     plotColData(sce.qc.grun, y="subset.proportion.ERCC", colour_by="keep") +
-        geom_hline(yintercept=qc.thresh.grun$subset.proportion["ERCC"], linetype="dashed", color="red") +
+        geom_hline(yintercept=qc.thresh.grun$subset.proportion$ERCC, linetype="dashed", color="red") +
         scale_y_log10() +
         ggtitle("ERCC proportion"),
     ncol=3
@@ -270,7 +276,9 @@ gridExtra::grid.arrange(
 )
 ```
 
-We can also check for inappropriate removal of cell types by comparing the expression profiles of the discarded and retained cells.
+### Checking the discarded cells
+
+We can check for inappropriate removal of cell types by comparing the expression profiles of the discarded and retained cells.
 If the discarded pool is enriched for a certain cell type, we should observe increased expression of the corresponding marker genes.
 To illustrate, we'll use the classic PBMC dataset from 10X Genomics [@zheng2017massively] where we perform some additional QC after cell calling.
 Examination of the upregulated genes in Figure \@ref(fig:discardplotpbmc) reveals _PF4_, _PPBP_ and _SDPR_,
@@ -350,6 +358,8 @@ summary(sce.relaxed.10x$keep)
 
 ## Blocking on experimental factors {#qc-block}
 
+### Computing block-specific thresholds
+
 More complex studies may involve multiple blocks of cells generated with different experimental parameters, e.g., sequencing depth.
 In such cases, it makes little sense to compute medians and MADs from a mixture distribution containing samples from multiple blocks.
 For example, if the sequencing coverage is lower in one block compared to the others, the median will be dragged down and the MAD will be inflated.
@@ -403,6 +413,8 @@ gridExtra::grid.arrange(
     ncol=2
 )
 ```
+
+### Dealing with bad blocks
 
 That said, outlier detection will not be effective if a block does not contain a majority of high-quality cells.
 For example, some donors in the @grun2016denovo human pancreas dataset have higher ERCC proportions (Figure \@ref(fig:qc-plot-pancreas)), probably corresponding to damaged cells.

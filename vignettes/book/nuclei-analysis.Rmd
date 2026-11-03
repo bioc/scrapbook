@@ -45,6 +45,7 @@ possibly introducing irrelevant heterogeneity in downstream analyses.
 library(scrapper)
 is.mito.nuc <- grep("^mt-", rownames(sce.nuc))
 sce.qc.nuc <- quickRnaQc.se(sce.nuc, subsets=list(Mt=is.mito.nuc))
+summary(sce.qc.nuc$keep) # Number of cells retained
 qc.thresh.nuc <- metadata(sce.qc.nuc)$qc$thresholds
 qc.thresh.nuc
 
@@ -59,7 +60,7 @@ gridExtra::grid.arrange(
         scale_y_log10() +
         ggtitle("Detected features"),
     plotColData(sce.qc.nuc, y="subset.proportion.Mt", colour_by="keep") + 
-        geom_hline(yintercept=qc.thresh.nuc$subset.proportion["Mt"], linetype="dashed", color="red") +
+        geom_hline(yintercept=qc.thresh.nuc$subset.proportion$Mt, linetype="dashed", color="red") +
         ggtitle("Mito prop"),
     ncol=3
 )
@@ -71,18 +72,13 @@ Even if the stripping was incomplete, a library might still contain enough biolo
 So, we might consider relaxing the QC filter threshold on the mitochondrial proportions:
 
 ```{r}
-# Cells retained using the original filter thresholds.
-summary(sce.qc.nuc$keep)
-
-# Relaxing the mitochondrial filter to allow a bit of contamination.
-qc.thresh.nuc.relaxed <- qc.thresh.nuc
-qc.thresh.nuc.relaxed$subset.proportion["Mt"] <- 0.002
-
-# Supplying custom thresholds to our QC function.
+# Relaxing the mitochondrial filter to allow a bit of contamination. Here I
+# just pulled a arbitrary threshold out of thin air, but you could also choose
+# more "standard" thresholds like 1% or 5%, it's up to you.
 sce.qc.nuc <- quickRnaQc.se(
     sce.nuc,
     subsets = list(Mt = is.mito.nuc),
-    thresholds = qc.thresh.nuc.relaxed
+    thresholds = list(subset.proportion = list(Mt = 0.002))
 )
 
 # More cells retained with the relaxed threshold.
@@ -99,9 +95,13 @@ as sequencing resources are not wasted on highly abundant but typically unintere
 ```{r tsne-nuc, fig.width=10, fig.height=6, fig.cap="$t$-SNE plots of the Wu kidney dataset. Each point is a cell and is colored by its cluster assignment (left) or its disease status (right)."}
 res.full.nuc <- analyze.se(
     sce.nuc,
-    rna.qc.subsets=list(Mt=is.mito.nuc),
-    # Making use of our filter threshold decisions:
-    more.rna.qc.args=list(thresholds=qc.thresh.nuc.relaxed)
+    rna.qc.subsets = list(Mt=is.mito.nuc),
+    # Using the same filter threshold from above:
+    more.rna.qc.args = list(
+        thresholds = list(
+            subset.proportion = list(Mt = 0.002)
+        )
+    )
 )
 
 sce.full.nuc <- res.full.nuc$x
@@ -116,26 +116,22 @@ We can also apply more complex procedures such as MNN correction (Chapter \@ref(
 e.g., to identify shared clusters across healthy and disease samples (Figure \@ref(fig:tsne-merged-nuc)).
 
 ```{r tsne-merged-nuc, fig.width=10, fig.height=6, fig.cap="$t$-SNE plots of the Wu kidney dataset after applying MNN correction across samples. Each point is a cell and is colored by its cluster assignment (left) or its disease status (right)."}
-# Re-creating our custom filter thresholds for a blocked analysis.
-sce.qc.block.nuc <- quickRnaQc.se(
-    sce.nuc,
-    block=sce.nuc$Status,
-    subsets=list(Mt=is.mito.nuc)
-)
-qc.block.thresh.nuc.relaxed <- metadata(sce.qc.block.nuc)$qc$thresholds
-qc.block.thresh.nuc.relaxed$subset.proportion[["Mt"]][] <- 0.002
+table(sce.nuc$Status)
 
 res.full.block.nuc <- analyze.se(
     sce.nuc,
-    block=sce.nuc$Status,
-    rna.qc.subsets=list(Mt=is.mito.nuc),
-    more.rna.qc.args=list(thresholds=qc.block.thresh.nuc.relaxed)
+    block = sce.nuc$Status,
+    rna.qc.subsets = list(Mt = is.mito.nuc),
+    more.rna.qc.args=list(
+        thresholds = list(
+            subset.proportion = list(Mt = 0.002)
+        )
+    )
 )
 
-sce.full.block.nuc <- res.full.block.nuc$x
 gridExtra::grid.arrange(
-    plotReducedDim(sce.full.block.nuc, dimred="TSNE", colour_by="graph.cluster"),
-    plotReducedDim(sce.full.block.nuc, dimred="TSNE", colour_by="Status"),
+    plotReducedDim(res.full.block.nuc$x, dimred="TSNE", colour_by="graph.cluster"),
+    plotReducedDim(res.full.block.nuc$x, dimred="TSNE", colour_by="Status"),
     ncol=2
 )
 ```
