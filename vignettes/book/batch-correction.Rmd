@@ -297,7 +297,7 @@ The correction is not obliged to preserve relative differences in per-gene expre
 In fact, the opposite is true - the correction must distort the expression profiles to merge batches together,
 as any differences in expression between batches for the same subpopulation would be a batch effect.
 Let's demonstrate on two pancreas datasets [@grun2016denovo;@muraro2016singlecell] that we'll treat as separate batches.
-Without any batch correction, we observe strong separation between these two datasets in Figure \@ref(batch-pancreas-uncorrected).
+Without any batch correction, we observe strong separation between these two datasets in Figure \@ref(fig:batch-pancreas-uncorrected).
 
 ```{r batch-pancreas-uncorrected, fig.cap="$t$-SNE plot of the Grun and Muraro pancreas datasets without batch correction. Each point is a cell, colored according to its assigned batch."}
 library(scRNAseq)

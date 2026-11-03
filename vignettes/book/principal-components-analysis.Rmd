@@ -212,7 +212,7 @@ This is equivalent to performing a linear regression on the expression values wi
 Regressing out the block removes any systematic difference in location between blocks but is only correct in very limiting circumstances,
 e.g., assuming all blocks have the same subpopulation composition and the difference between blocks is consistent for all cell subpopulations.
 Such assumptions may be appropriate in some situations - say, when technical replicates are involved - but are not generally applicable.
-Don't be fooled by Figure \@ref(fig:pca-residuals-416b); the PBMC datasets are replicates and most other applications of `center.scores.by.block=TRUE` will not look as good.
+Don't be fooled by Figure \@ref(fig:pca-residuals-pbmc); the PBMC datasets are replicates and most other applications of `center.scores.by.block=TRUE` will not look as good.
 
 ```{r pca-residuals-pbmc, fig.cap="First two PCs for the combined PBMC datasets after blocking on the dataset of origin, where PC scores are computed from residuals. Each point represents a cell, colored by its dataset."}
 sce.resid.pbmc <- runPca.se(
