@@ -76,6 +76,7 @@ y.spinal <- normLibSizes(y.spinal)
 
 # Using a log-fold change threshold of 0.5 here, to avoid prioritizing genes
 # with very small log-fold changes when the variance is also very low.
+library(limma)
 design.spinal <- model.matrix(~tomato, y.spinal$samples)
 v.spinal <- voomLmFit(y.spinal, design.spinal, sample.weights=TRUE)
 fit.spinal <- treat(v.spinal, robust=TRUE, lfc=0.5)

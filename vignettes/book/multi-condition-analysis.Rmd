@@ -115,6 +115,7 @@ keep.beta.seger <- filterByExpr(y.beta.seger, group=y.beta.seger$samples$disease
 y.beta.seger <- y.beta.seger[keep.beta.seger,]
 y.beta.seger <- normLibSizes(y.beta.seger)
 
+library(limma)
 design.beta.seger <- model.matrix(~disease, y.beta.seger$samples)
 v.beta.seger <- voomLmFit(y.beta.seger, design.beta.seger, sample.weights=TRUE)
 fit.beta.seger <- eBayes(v.beta.seger, robust=TRUE)
