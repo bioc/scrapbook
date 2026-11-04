@@ -21,6 +21,7 @@ rmd_files: [
     "marker-detection.Rmd",
     "batch-correction.Rmd",
     "multi-condition-analysis.Rmd",
+    "ambient-contamination.Rmd",
     "cite-seq.Rmd",
     "nuclei-analysis.Rmd",
     "epilogue.Rmd"
