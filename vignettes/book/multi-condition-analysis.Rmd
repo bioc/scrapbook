@@ -75,7 +75,7 @@ assay(pseudo.bulk.seger)[1:10,1:10] # sum of counts for each individual/cell-typ
 
 Once we've generated the pseudo-bulk count matrix, we test for differences between conditions - in this case, disease status - within each cell type.
 Any DE analysis method that works with bulk RNA-seq data can be used, provided that we have replicates within each condition.
-Here, we'll be using `voom()` from the `r Biocpkg("limma")` package [@law2014voom].
+Here, we'll be using the `voom` method from the `r Biocpkg("limma")` package [@law2014voom].
 We won't go into too much detail as there is plentiful documentation elsewhere, e.g., in the `limmaUsersGuide()`,
 though there are a few pieces of advice that are specific to pseudo-bulk samples:
 
@@ -90,18 +90,24 @@ though there are a few pieces of advice that are specific to pseudo-bulk samples
   The number of cells contributing to each pseudo-bulk profile is often orders of magnitude less than that used in bulk RNA-seq,
   so the latter will be a more precise assay of the population transcriptome.
 
-We test for disease-associated DE genes in beta cells using `voom()` with additional weighting for sample quality.
-Perhaps unsurprisingly, _INS_ is one of the top DE genes.
-We could then repeat this analysis on all available cell types, though for brevity's sake, we won't show that here. 
-Check out other Bioconductor packages like `r Biocpkg("muscat")`, which implement some convenient functions for iterative DE analyses within cell types. 
+To demonstrate, let's focus on beta cells given their obvious importance in pancreatic function.
+Each pseudo-bulk sample here is derived from a decent number of cells, but we could also apply some filtering if we wanted to use a more stringent threshold.
 
 ```{r}
 pseudo.beta.seger <- pseudo.bulk.seger[,which(pseudo.bulk.seger$`factor.cell type` == "beta cell")]
-
-# We can have a look at the number of cells contributing to each profile, in
-# case we want to remove low-abundance profiles.
 pseudo.beta.seger$counts
+```
 
+```{r, echo=FALSE}
+stopifnot(all(pseudo.beta.seger$counts >= 10))
+```
+
+We test for disease-associated DE genes in beta cells using the `voomLmFit()` function.
+We weight each sample based on its residuals [@liu2015weight] to reduce the influence of pseudo-bulk samples derived from few cells.
+We also use robust estimation of the empirical Bayes parameters [@phipson2016robust] to protect against outlier genes with very low/high variances.
+Some readers may prefer to replace `eBayes()` with `treat()` to focus on genes with larger log-fold changes.
+
+```{r}
 library(edgeR)
 y.beta.seger <- DGEList(assay(pseudo.beta.seger, "sums"), samples=as.data.frame(colData(pseudo.beta.seger)))
 
@@ -110,10 +116,16 @@ y.beta.seger <- y.beta.seger[keep.beta.seger,]
 y.beta.seger <- normLibSizes(y.beta.seger)
 
 design.beta.seger <- model.matrix(~disease, y.beta.seger$samples)
-v.beta.seger <- voomWithQualityWeights(y.beta.seger, design.beta.seger)
-fit.beta.seger <- lmFit(v.beta.seger)
-fit.beta.seger <- eBayes(fit.beta.seger, robust=TRUE)
+v.beta.seger <- voomLmFit(y.beta.seger, design.beta.seger, sample.weights=TRUE)
+fit.beta.seger <- eBayes(v.beta.seger, robust=TRUE)
+```
 
+Perhaps unsurprisingly, _INS_ is one of the top DE genes that is downregulated in diseased beta cells^[
+Behold, the power of single-cell analysis to recapitulate known biology].
+We could repeat this analysis on all available cell types, though for brevity's sake, we won't show that here. 
+Check out other Bioconductor packages like `r Biocpkg("muscat")`, which implement some convenient functions for iterative DE analyses within cell types. 
+
+```{r}
 res.beta.seger <- topTable(fit.beta.seger, sort.by="p", n=Inf, coef=2)
 head(res.beta.seger)
 ```
